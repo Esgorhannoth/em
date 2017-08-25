@@ -62,6 +62,7 @@ type Editor struct {
     err string
     commands map[rune]func(int, int, rune, string)
 	pattern *regexp.Regexp
+	addrCnt int
 	saved *EditorState   // saved state of buffer before commands that modify buffer
 }
 
@@ -70,6 +71,7 @@ func NewEditor() *Editor {
     e.buffer = list.New()
     e.line = 0
 	e.pattern = nil
+	e.addrCnt = 0
 	e.saved = NewEditorState()
 
     e.commands = map[rune]func(int, int, rune, string){
@@ -259,7 +261,7 @@ func (e *Editor) Write(start, end int, cmd rune, text string) {
         return
     }
 
-    file, err := os.Create(e.filename)
+    file, err := os.Create(filename)
     defer file.Close()
 
     if err != nil {
@@ -268,12 +270,27 @@ func (e *Editor) Write(start, end int, cmd rune, text string) {
         return
     }
 
+	// if address count is 0
+	from := 1
+	to   := e.LastAddr()
+
+	if e.addrCnt >= 2 {
+		from = start
+		to = end
+	}
+	if e.addrCnt == 1 {
+		from = start
+		to = from
+	}
+
     size := 0
 
-    for l := e.buffer.Front(); l != nil; l = l.Next() {
-        text := l.Value.(string)
-        count, _ := file.WriteString(text + "\n")
-        size += count
+    for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
+		if i >= from && i <= to {
+			text := l.Value.(string)
+			count, _ := file.WriteString(text + "\n")
+			size += count
+		}
     }
 
     e.modified = false
@@ -619,64 +636,17 @@ func (e *Editor) Help(start, end int, cmd rune, text string) {
     }
 }
 
-func (e *Editor) Parse(text string) (int, int, string) {
-    if len(text) == 0 {
-        return e.line+1, e.line+1, "p"
-    }
-
-    index := -1
-    for i, c := range text {
-        if _, ok := e.commands[c]; ok {
-            index = i
-            break
-        }
-    }
-
-    if index == 0 {
-        return e.line, e.line, text
-    }
-
-    var nrange, rest string
-
-    if index == -1 {
-        nrange = text
-    } else {
-        nrange = text[:index]
-    }
-
-    nrange = e.replaceMacros(nrange)
-
-    nums := strings.Split(nrange, ",")
-    start := 0
-    end := 0
-
-    if nrange == "," || nrange == "%" {
-        start = 1
-        end = e.buffer.Len()
-    } else if len(nums) == 2 {
-        start, _ = strconv.Atoi(nums[0])
-        end, _ = strconv.Atoi(nums[1])
-    } else if len(nums) == 1 {
-        start, _ = strconv.Atoi(nums[0])
-        end = start
-    }
-
-    if start == 0 && end == 0 {
-        // Invalid input
-    } else if index == -1 {
-        rest = "p"
-    } else {
-        rest = text[index:]
-    }
-
-    return start, end, rest
-}
-
 func (e *Editor) Prompt() {
     text := readLine()
 	p := NewLineParser(e, text)
 
-	start, end, cmd, text := p.Parse()
+	start, end, cmd, text, addrCnt, err := p.Parse()
+	if err != nil {
+		e.Error(err.Error())
+		return
+	}
+
+	e.addrCnt = addrCnt
 
     if text == "" {
         e.Error("unknown command")
