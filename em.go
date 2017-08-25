@@ -64,6 +64,7 @@ type Editor struct {
 	pattern *regexp.Regexp
 	addrCnt int
 	saved *EditorState   // saved state of buffer before commands that modify buffer
+	showErr bool
 }
 
 func NewEditor() *Editor {
@@ -73,6 +74,7 @@ func NewEditor() *Editor {
 	e.pattern = nil
 	e.addrCnt = 0
 	e.saved = NewEditorState()
+	e.showErr = false
 
     e.commands = map[rune]func(int, int, rune, string){
         'p': e.Print,
@@ -89,6 +91,7 @@ func NewEditor() *Editor {
         's': e.ReSub,
         'w': e.Write,
         'h': e.Help,
+        'H': e.Help,
         'q': e.Quit,
         'Q': e.Quit,
 		'u': e.Undo,
@@ -496,7 +499,11 @@ func (e *Editor) Change(start, end int, cmd rune, text string) {
 
 func (e *Editor) Error(msg string) {
     e.err = msg
-    fmt.Println("?")
+	if e.showErr {
+		fmt.Println(msg)
+	} else {
+		fmt.Println("?")
+	}
 }
 
 func (e *Editor) replaceMacros(text string) string {
@@ -636,6 +643,11 @@ func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
 }
 
 func (e *Editor) Help(start, end int, cmd rune, text string) {
+	if cmd == 'H' {
+		e.showErr = ! e.showErr
+		return
+	}
+
     if len(e.err) > 0 {
         fmt.Println(e.err)
     }
