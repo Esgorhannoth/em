@@ -92,6 +92,7 @@ func NewEditor() *Editor {
         'q': e.Quit,
         'Q': e.Quit,
 		'u': e.Undo,
+		'=': e.CurrentLine,
     }
 
     return e
@@ -628,6 +629,10 @@ func (e *Editor) SaveBufferState() {
 	e.saved.line = e.line
 
 	e.saved.Done()
+}
+
+func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
+	fmt.Println(e.line)
 }
 
 func (e *Editor) Help(start, end int, cmd rune, text string) {
