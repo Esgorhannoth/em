@@ -28,6 +28,32 @@ func ExplicitEscapes(s string) (result string) {
 	return
 }
 
+type EditorState struct {
+	buffer *list.List
+	line int
+	alreadyDone bool // resets after each command is completely done
+}
+
+func (es *EditorState) Reset() {
+	es.alreadyDone = false
+}
+
+func (es EditorState) IsDone() bool {
+	return es.alreadyDone
+}
+
+func (es *EditorState) Done() {
+	es.alreadyDone = true
+}
+
+func NewEditorState() *EditorState {
+	return &EditorState{
+		buffer: nil,
+		line: 0,
+		alreadyDone: false,
+	}
+}
+
 type Editor struct {
     buffer *list.List
     filename string
@@ -37,6 +63,8 @@ type Editor struct {
     commands map[rune]func(int, int, rune, string)
 	pattern *regexp.Regexp
 	addrCnt int
+	saved *EditorState   // saved state of buffer before commands that modify buffer
+	showErr bool
 }
 
 func NewEditor() *Editor {
@@ -45,6 +73,8 @@ func NewEditor() *Editor {
     e.line = 0
 	e.pattern = nil
 	e.addrCnt = 0
+	e.saved = NewEditorState()
+	e.showErr = false
 
     e.commands = map[rune]func(int, int, rune, string){
         'p': e.Print,
@@ -61,8 +91,11 @@ func NewEditor() *Editor {
         's': e.ReSub,
         'w': e.Write,
         'h': e.Help,
+        'H': e.Help,
         'q': e.Quit,
         'Q': e.Quit,
+		'u': e.Undo,
+		'=': e.CurrentLine,
     }
 
     return e
@@ -305,6 +338,8 @@ func (e *Editor) Join(start, end int, cmd rune, text string) {
 		}
 	}
 
+	e.SaveBufferState()
+
 	joined := ""
 
 	// collect lines to join
@@ -397,6 +432,8 @@ func (e *Editor) Insert(start, end int, cmd rune, text string) {
     input := readLines()
     e.setLine(end)
 
+	e.SaveBufferState()
+
     if e.buffer.Len() == 0 {
         e.buffer.PushBackList(input)
         e.setLine(e.line + input.Len())
@@ -438,6 +475,8 @@ func (e *Editor) Delete(start, end int, cmd rune, text string) {
 		return
 	}
 
+	e.SaveBufferState()
+
     for i := start; i <= end; i++ {
         next := curr.Next()
         e.buffer.Remove(curr)
@@ -453,13 +492,18 @@ func (e *Editor) Change(start, end int, cmd rune, text string) {
 		e.Error("invalid address")
 		return
 	}
+	e.SaveBufferState()
     e.Delete(start, end, cmd, text)
     e.Insert(start, end, 'i', text)
 }
 
 func (e *Editor) Error(msg string) {
     e.err = msg
-    fmt.Println("?")
+	if e.showErr {
+		fmt.Println(msg)
+	} else {
+		fmt.Println("?")
+	}
 }
 
 func (e *Editor) replaceMacros(text string) string {
@@ -520,6 +564,9 @@ func (e *Editor) ReSub(start, end int, cmd rune, text string) {
         return
     }
 
+	// save state before replacing
+	e.SaveBufferState()
+
     for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
 		if i > end {
 			break
@@ -554,7 +601,53 @@ func (e *Editor) Quit(start, end int, cmd rune, text string) {
     }
 }
 
+// Undo replaces current buffer state with its previous saved state.
+// Undo does not use any of its arguments.
+func (e *Editor) Undo(start, end int, cmd rune, text string) {
+	if e.saved.buffer == nil {
+		e.Error("nothing to undo")
+		return
+	}
+
+	// swapping line numbers
+	tmpLine := e.line
+	e.line = e.saved.line
+	e.saved.line = tmpLine
+
+	// swapping buffers
+	tmp := e.buffer
+	e.buffer = e.saved.buffer
+	e.saved.buffer = tmp
+}
+
+func (e *Editor) SaveBufferState() {
+	// Do not save intermediate state
+	if e.saved.IsDone() {
+		return
+	}
+
+	tmp := list.New()
+	for l := e.buffer.Front(); l != nil; l = l.Next() {
+		if val, ok := l.Value.(string); ok {
+			tmp.PushBack(val)
+		}
+	}
+	e.saved.buffer = tmp
+	e.saved.line = e.line
+
+	e.saved.Done()
+}
+
+func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
+	fmt.Println(e.line)
+}
+
 func (e *Editor) Help(start, end int, cmd rune, text string) {
+	if cmd == 'H' {
+		e.showErr = ! e.showErr
+		return
+	}
+
     if len(e.err) > 0 {
         fmt.Println(e.err)
     }
@@ -586,6 +679,7 @@ func (e *Editor) Prompt() {
     }
 
     if fn, ok := e.commands[cmd]; ok {
+		e.saved.Reset()
         fn(start, end, cmd, text)
     } else {
         e.Error("unknown command")
