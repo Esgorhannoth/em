@@ -63,6 +63,7 @@ type Editor struct {
     commands map[rune]func(int, int, rune, string)
 	pattern *regexp.Regexp
 	addrCnt int
+	thirdAddr int        // only for commands with destination, e.g. 't' or 'm'
 	saved *EditorState   // saved state of buffer before commands that modify buffer
 	showErr bool
 }
@@ -644,17 +645,8 @@ func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
 }
 
 func (e *Editor) Copy(start, end int, cmd rune, text string) {
-	rest := strings.TrimSpace(text[1:])
-	dest, err := strconv.Atoi(rest)
-	if err != nil {
-		e.Error("invalid destination")
-		return
-	}
-	if dest < 0 {
-		e.Error("destination must be positive or zero")
-		return
-	}
-	if dest > e.LastAddr() {
+	dest := e.thirdAddr
+	if dest < 0 || dest > e.LastAddr() {
 		e.Error("invalid destination")
 		return
 	}
@@ -668,6 +660,7 @@ func (e *Editor) Copy(start, end int, cmd rune, text string) {
 		}
 	}
 
+	// handle line zero case
 	if dest == 0 {
 		e.InsertBefore(copied, 1)
 	} else {
@@ -690,13 +683,14 @@ func (e *Editor) Prompt() {
     text := readLine()
 	p := NewLineParser(e, text)
 
-	start, end, cmd, text, addrCnt, err := p.Parse()
+	start, end, third, cmd, text, addrCnt, err := p.Parse()
 	if err != nil {
 		e.Error(err.Error())
 		return
 	}
 
 	e.addrCnt = addrCnt
+	e.thirdAddr = third
 
     if text == "" {
         e.Error("unknown command")

@@ -104,10 +104,10 @@ func (lp *LineParser) Match(r rune) bool {
 	return false
 }
 
-func (lp *LineParser) Parse() (start, end int, cmd rune, text string, count int, err error) {
+func (lp *LineParser) Parse() (start, end, third int, cmd rune, text string, count int, err error) {
 	if len(lp.text) == 0 { // just Enter
 		addr := lp.editor.CurrentAddr() + 1
-		return addr, addr, 'p', "p", 0, nil
+		return addr, addr, InvalidAddr, 'p', "p", 0, nil
 	}
 	ctx := NewContext(lp, lp.editor)
 	lp.ctx = ctx
@@ -115,7 +115,27 @@ func (lp *LineParser) Parse() (start, end int, cmd rune, text string, count int,
 	if lp.si >= len(lp.text) {
 		lp.text = append(lp.text, 'p') // default command
 	}
-	return ctx.fstAddr, ctx.sndAddr, lp.text[lp.si], string(lp.text[lp.si:]), count, ctx.err
+
+	// Check for possible third address
+	trd := InvalidAddr
+
+	fst := ctx.fstAddr
+	snd := ctx.sndAddr
+	text1 := lp.text[lp.si]
+	rest1 := string(lp.text[lp.si:])
+	err1 := ctx.err
+	if ctx.err != nil {
+		return fst, snd, trd, text1, rest1, count, ctx.err
+	}
+
+	ctx.lp.Consume() // skip command
+	count2 := addrRange(ctx) // possible third address
+	if count2 > 0 {
+		trd = ctx.sndAddr
+	}
+
+	// return only first 'count' as we need it for some commands (e.g. 'w')
+	return fst, snd, trd, text1, rest1, count, err1
 }
 
 // Instead of global state in C
