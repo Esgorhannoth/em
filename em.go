@@ -96,6 +96,7 @@ func NewEditor() *Editor {
         'Q': e.Quit,
 		'u': e.Undo,
 		'=': e.CurrentLine,
+		't': e.Copy,
     }
 
     return e
@@ -640,6 +641,43 @@ func (e *Editor) SaveBufferState() {
 
 func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
 	fmt.Println(e.line)
+}
+
+func (e *Editor) Copy(start, end int, cmd rune, text string) {
+	rest := strings.TrimSpace(text[1:])
+	target, err := strconv.Atoi(rest)
+	if err != nil {
+		e.Error("invalid target line number")
+		return
+	}
+	if target < 0 {
+		e.Error("target line number must be positive or zero")
+		return
+	}
+	if target > e.LastAddr() {
+		e.Error("invalid target address")
+		return
+	}
+
+	e.SaveBufferState() // 't' is undo-able
+
+	copied := list.New()
+	for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
+		if i >= start && i <= end {
+			copied.PushBack(l.Value)
+			/* TODO remove commended
+			if val, ok := l.Value.(string); ok {
+				copied.PushBack(val)
+			}
+			*/
+		}
+	}
+
+	if target == 0 {
+		e.InsertBefore(copied, 1)
+	} else {
+		e.InsertAfter(copied, target)
+	}
 }
 
 func (e *Editor) Help(start, end int, cmd rune, text string) {
