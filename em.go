@@ -113,7 +113,7 @@ func (e *Editor) isModified() bool {
 }
 
 func (e *Editor) Index(idx int) *list.Element {
-    for i, l := 0, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
+    for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
         if i == idx {
             return l
         }
@@ -165,7 +165,7 @@ func (e *Editor) Search(fwd bool) (num int, err error) {
 	rx := e.pattern
 	num = e.line
 
-	start := e.Index(num-1)
+	start := e.Index(num)
 	if start == nil {
 		return InvalidAddr, errors.New("wrong line number")
 	}
@@ -351,7 +351,7 @@ func (e *Editor) Join(start, end int, cmd rune, text string) {
 	}
 
 	// insert joined line before `start`
-	node := e.Index(start-1)
+	node := e.Index(start)
 	e.buffer.InsertBefore(joined, node)
 
 	// remove joined lines
@@ -407,7 +407,7 @@ func readLines() *list.List {
 }
 
 func (e *Editor) InsertBefore(other *list.List, line int) {
-    node := e.Index(line-1)
+    node := e.Index(line)
 
     for i, l := other.Len(), other.Back(); i > 0; i, l = i-1, l.Prev() {
         e.buffer.InsertBefore(l.Value, node)
@@ -418,7 +418,7 @@ func (e *Editor) InsertBefore(other *list.List, line int) {
 }
 
 func (e *Editor) InsertAfter(other *list.List, line int) {
-    node := e.Index(line-1)
+    node := e.Index(line)
 
     for i, l := 0, other.Front(); i < other.Len(); i, l = i+1, l.Next() {
         e.buffer.InsertAfter(l.Value, node)
@@ -470,7 +470,7 @@ func (e *Editor) Delete(start, end int, cmd rune, text string) {
 		e.Error("invalid address")
 		return
 	}
-    curr := e.Index(start-1)
+    curr := e.Index(start)
 	if curr == nil {
 		e.Error("invalid address")
 		return
