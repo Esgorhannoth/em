@@ -645,17 +645,17 @@ func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
 
 func (e *Editor) Copy(start, end int, cmd rune, text string) {
 	rest := strings.TrimSpace(text[1:])
-	target, err := strconv.Atoi(rest)
+	dest, err := strconv.Atoi(rest)
 	if err != nil {
-		e.Error("invalid target line number")
+		e.Error("invalid destination")
 		return
 	}
-	if target < 0 {
-		e.Error("target line number must be positive or zero")
+	if dest < 0 {
+		e.Error("destination must be positive or zero")
 		return
 	}
-	if target > e.LastAddr() {
-		e.Error("invalid target address")
+	if dest > e.LastAddr() {
+		e.Error("invalid destination")
 		return
 	}
 
@@ -665,18 +665,13 @@ func (e *Editor) Copy(start, end int, cmd rune, text string) {
 	for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
 		if i >= start && i <= end {
 			copied.PushBack(l.Value)
-			/* TODO remove commended
-			if val, ok := l.Value.(string); ok {
-				copied.PushBack(val)
-			}
-			*/
 		}
 	}
 
-	if target == 0 {
+	if dest == 0 {
 		e.InsertBefore(copied, 1)
 	} else {
-		e.InsertAfter(copied, target)
+		e.InsertAfter(copied, dest)
 	}
 }
 
