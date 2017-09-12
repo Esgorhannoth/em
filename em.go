@@ -91,6 +91,7 @@ func NewEditor() *Editor {
 		'j': e.Join,
         's': e.ReSub,
         'w': e.Write,
+        'W': e.Write,
         'h': e.Help,
         'H': e.Help,
         'q': e.Quit,
@@ -267,8 +268,13 @@ func (e *Editor) Write(start, end int, cmd rune, text string) {
         return
     }
 
-    file, err := os.Create(filename)
-    defer file.Close()
+	var file *os.File
+	var err error
+	switch cmd {
+		case 'w': file, err = os.Create(filename)
+		case 'W': file, err = os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	}
+	defer file.Close()
 
     if err != nil {
         fmt.Println(err)
