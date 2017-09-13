@@ -63,6 +63,7 @@ type Editor struct {
     commands map[rune]func(int, int, rune, string)
 	pattern *regexp.Regexp
 	addrCnt int
+	thirdAddr int        // only for commands with destination, e.g. 't' or 'm'
 	saved *EditorState   // saved state of buffer before commands that modify buffer
 	showErr bool
 }
@@ -90,12 +91,14 @@ func NewEditor() *Editor {
 		'j': e.Join,
         's': e.ReSub,
         'w': e.Write,
+        'W': e.Write,
         'h': e.Help,
         'H': e.Help,
         'q': e.Quit,
         'Q': e.Quit,
 		'u': e.Undo,
 		'=': e.CurrentLine,
+		't': e.Copy,
     }
 
     return e
@@ -112,7 +115,7 @@ func (e *Editor) isModified() bool {
 }
 
 func (e *Editor) Index(idx int) *list.Element {
-    for i, l := 0, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
+    for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
         if i == idx {
             return l
         }
@@ -164,7 +167,7 @@ func (e *Editor) Search(fwd bool) (num int, err error) {
 	rx := e.pattern
 	num = e.line
 
-	start := e.Index(num-1)
+	start := e.Index(num)
 	if start == nil {
 		return InvalidAddr, errors.New("wrong line number")
 	}
@@ -265,8 +268,13 @@ func (e *Editor) Write(start, end int, cmd rune, text string) {
         return
     }
 
-    file, err := os.Create(filename)
-    defer file.Close()
+	var file *os.File
+	var err error
+	switch cmd {
+		case 'w': file, err = os.Create(filename)
+		case 'W': file, err = os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	}
+	defer file.Close()
 
     if err != nil {
         fmt.Println(err)
@@ -350,7 +358,7 @@ func (e *Editor) Join(start, end int, cmd rune, text string) {
 	}
 
 	// insert joined line before `start`
-	node := e.Index(start-1)
+	node := e.Index(start)
 	e.buffer.InsertBefore(joined, node)
 
 	// remove joined lines
@@ -406,7 +414,7 @@ func readLines() *list.List {
 }
 
 func (e *Editor) InsertBefore(other *list.List, line int) {
-    node := e.Index(line-1)
+    node := e.Index(line)
 
     for i, l := other.Len(), other.Back(); i > 0; i, l = i-1, l.Prev() {
         e.buffer.InsertBefore(l.Value, node)
@@ -417,7 +425,7 @@ func (e *Editor) InsertBefore(other *list.List, line int) {
 }
 
 func (e *Editor) InsertAfter(other *list.List, line int) {
-    node := e.Index(line-1)
+    node := e.Index(line)
 
     for i, l := 0, other.Front(); i < other.Len(); i, l = i+1, l.Next() {
         e.buffer.InsertAfter(l.Value, node)
@@ -469,7 +477,7 @@ func (e *Editor) Delete(start, end int, cmd rune, text string) {
 		e.Error("invalid address")
 		return
 	}
-    curr := e.Index(start-1)
+    curr := e.Index(start)
 	if curr == nil {
 		e.Error("invalid address")
 		return
@@ -642,6 +650,30 @@ func (e *Editor) CurrentLine(start, end int, cmd rune, text string) {
 	fmt.Println(e.line)
 }
 
+func (e *Editor) Copy(start, end int, cmd rune, text string) {
+	dest := e.thirdAddr
+	if dest < 0 || dest > e.LastAddr() {
+		e.Error("invalid destination")
+		return
+	}
+
+	e.SaveBufferState() // 't' is undo-able
+
+	copied := list.New()
+	for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
+		if i >= start && i <= end {
+			copied.PushBack(l.Value)
+		}
+	}
+
+	// handle line zero case
+	if dest == 0 {
+		e.InsertBefore(copied, 1)
+	} else {
+		e.InsertAfter(copied, dest)
+	}
+}
+
 func (e *Editor) Help(start, end int, cmd rune, text string) {
 	if cmd == 'H' {
 		e.showErr = ! e.showErr
@@ -657,13 +689,14 @@ func (e *Editor) Prompt() {
     text := readLine()
 	p := NewLineParser(e, text)
 
-	start, end, cmd, text, addrCnt, err := p.Parse()
+	start, end, third, cmd, text, addrCnt, err := p.Parse()
 	if err != nil {
 		e.Error(err.Error())
 		return
 	}
 
 	e.addrCnt = addrCnt
+	e.thirdAddr = third
 
     if text == "" {
         e.Error("unknown command")
