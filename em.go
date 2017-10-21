@@ -20,10 +20,6 @@ func ExplicitEscapes(s string) (result string) {
 		"\b": "\\b",
 		"\r": "\\r",
 		"\n": "\\n",
-		"\x05": "^E",
-		"\x06": "^F",
-		"\x07": "^G",
-		"\x08": "^H", // backspace when printed
 		"\x0c": "^L",
 	}
 	for k, v := range(replacements) {
