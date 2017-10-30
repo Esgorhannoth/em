@@ -219,16 +219,16 @@ func (e *Editor) Open(filename string) {
     file, err := os.Open(filename)
     defer file.Close()
 
+    e.buffer = list.New()
+    e.filename = filename
+    e.modified = false
+    size := 0
+
     if err != nil {
         fmt.Println(err)
         e.Error("cannot open input file")
         return
     }
-
-    e.buffer = list.New()
-    e.filename = filename
-    e.modified = false
-    size := 0
 
     scanner := bufio.NewScanner(file)
 
