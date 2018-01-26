@@ -238,12 +238,14 @@ func nextAddr(ctx *Context) (int, bool) { // addr, ok
 				}
 				rx, ok := matchDelimitedRegexp(ctx, r)
 				if !ok {
+					ctx.err = errors.New("wrong regexp")
 					return addr, false
 				}
 
 				if len(rx) > 0 {
 					regexp, err := regexp.Compile(rx)
 					if err != nil {
+						ctx.err = errors.New("could not build regexp")
 						return addr, false
 					}
 					ctx.e.pattern = regexp
@@ -252,6 +254,7 @@ func nextAddr(ctx *Context) (int, bool) { // addr, ok
 				var err error
 				addr, err = ctx.e.Search(r == '/')
 				if err != nil {
+					ctx.err = err
 					return addr, false
 				}
 			case '%', ',', ';':
