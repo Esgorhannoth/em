@@ -7,6 +7,7 @@ import (
     "fmt"
     "os"
     "regexp"
+    "runtime"
     "strconv"
     "strings"
 )
@@ -301,7 +302,11 @@ func (e *Editor) Write(start, end int, cmd rune, text string) {
     for i, l := 1, e.buffer.Front(); l != nil; i, l = i+1, l.Next() {
 		if i >= from && i <= to {
 			text := l.Value.(string)
-			count, _ := file.WriteString(text + "\n")
+			line_delim := "\n"
+			if runtime.GOOS == "windows" {
+				line_delim = "\r\n"
+			}
+			count, _ := file.WriteString(text + line_delim)
 			size += count
 		}
     }
